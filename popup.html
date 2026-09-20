@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>FreeStudocu settings</title>
+    <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+    <header>
+        <h1>FreeStudocu</h1>
+        <span class="version">v1.1.0</span>
+    </header>
+
+    <section>
+        <h2>Cleanup</h2>
+        <label class="row">
+            <input type="checkbox" id="hideAds">
+            <div>
+                <div class="label">Hide ads</div>
+                <div class="hint">Removes ad slots from the page.</div>
+            </div>
+        </label>
+        <label class="row">
+            <input type="checkbox" id="hideAiToolbar">
+            <div>
+                <div class="label">Hide AI toolbar</div>
+                <div class="hint">Hides "Ask a question" and Mock exam / Summary / Quiz buttons.</div>
+            </div>
+        </label>
+        <label class="row">
+            <input type="checkbox" id="replaceLogo">
+            <div>
+                <div class="label">Replace Studocu logo</div>
+                <div class="hint">Swaps the site logo for the FreeStudocu one.</div>
+            </div>
+        </label>
+    </section>
+
+    <section>
+        <h2>Document viewer</h2>
+        <label class="row">
+            <input type="checkbox" id="autoLoadPages">
+            <div>
+                <div class="label">Auto-load all pages</div>
+                <div class="hint">Scrolls through the document so every page is fetched and rendered.</div>
+            </div>
+        </label>
+        <label class="row">
+            <input type="checkbox" id="showDownloadButton">
+            <div>
+                <div class="label">Show Download button</div>
+                <div class="hint">Adds a button that builds a PDF of the whole document.</div>
+            </div>
+        </label>
+        <label class="row">
+            <input type="checkbox" id="showUnblurButton">
+            <div>
+                <div class="label">Show Unblur button</div>
+                <div class="hint">Adds a button that clears cookies and reloads to fix blank images.</div>
+            </div>
+        </label>
+        <label class="row">
+            <input type="checkbox" id="showGatedNote">
+            <div>
+                <div class="label">Show locked page notice</div>
+                <div class="hint">Labels pages Studocu refuses to send text for.</div>
+            </div>
+        </label>
+    </section>
+
+    <section class="danger">
+        <h2>Automation</h2>
+        <label class="row">
+            <input type="checkbox" id="autoUnblurOnLoad">
+            <div>
+                <div class="label">Auto-unblur on document open</div>
+                <div class="hint">
+                    Runs the factory reset the first time a document opens, then waits 30&nbsp;minutes.
+                    <strong>Signs you out of Studocu.</strong>
+                </div>
+            </div>
+        </label>
+    </section>
+
+    <footer>
+        <button id="reset" type="button">Reset to defaults</button>
+        <button id="factory" type="button" class="danger-btn">Factory reset now</button>
+    </footer>
+
+    <div id="status" class="status" role="status" aria-live="polite"></div>
+
+    <script src="popup.js"></script>
+</body>
+</html>

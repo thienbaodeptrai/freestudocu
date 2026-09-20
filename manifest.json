@@ -1,0 +1,53 @@
+{
+  "manifest_version": 3,
+  "name": "FreeStudocu",
+  "version": "1.1.0",
+  "description": "Unblur and download Studocu documents. Includes a factory reset that clears Studocu cookies (including HttpOnly) and page storage.",
+
+  "permissions": [
+    "cookies",
+    "storage",
+    "scripting",
+    "tabs"
+  ],
+
+  "host_permissions": [
+    "*://*.studocu.com/*",
+    "*://*.studeersnel.nl/*",
+    "*://*.studocu.vn/*",
+    "*://*.studocu.id/*",
+    "*://*.trustpilot.com/*",
+    "*://*.refinery89.com/*",
+    "*://*.adagio.io/*"
+  ],
+
+  "background": {
+    "service_worker": "background.js"
+  },
+
+  "action": {
+    "default_title": "FreeStudocu settings",
+    "default_popup": "popup.html"
+  },
+
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.studocu.com/*",
+        "https://www.studeersnel.nl/*",
+        "https://www.studocu.vn/*",
+        "https://www.studocu.id/*"
+      ],
+      "css": ["style.css"],
+      "js": [
+        "common.js",
+        "reset.js",
+        "cleanup.js",
+        "pages.js",
+        "download.js",
+        "main.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}

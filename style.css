@@ -1,0 +1,633 @@
+/* FreeStudocu stylesheet.
+ *
+ * Applied before the content scripts run, so nothing premium-related flashes.
+ * Feature toggles are expressed as attributes on <html> set by
+ * FS.applySettingsToDocument() in common.js:
+ *   data-fs-ads="show"       keep ads
+ *   data-fs-ai="show"        keep the AI toolbar
+ *   data-fs-download="off"   keep Studocu's own download button
+ * A rule whose feature can be switched off is written as
+ * html:not([data-fs-x="..."]) so the default (attribute absent) is "hidden".
+ *
+ * When you add a selector here, add it to SELECTORS in common.js too.
+ */
+
+/* ========== Core blur removal ========== */
+
+body .nofilter {
+    filter: none !important;
+    -webkit-filter: none !important;
+    opacity: 1 !important;
+}
+
+/* Blurred page wrappers (CSS modules with dynamic hashes) */
+.page-content[class*="blurred"],
+.page-content[class*="Blurred"],
+.pf[class*="blurred"],
+.pf[class*="Blurred"] {
+    filter: none !important;
+    -webkit-filter: none !important;
+    opacity: 1 !important;
+    user-select: auto !important;
+    -webkit-user-select: auto !important;
+    pointer-events: auto !important;
+    visibility: visible !important;
+    clip-path: none !important;
+    -webkit-clip-path: none !important;
+}
+
+.pf.nofilter,
+.pf {
+    filter: none !important;
+    -webkit-filter: none !important;
+    opacity: 1 !important;
+    clip-path: none !important;
+    -webkit-clip-path: none !important;
+    mask-image: none !important;
+    -webkit-mask-image: none !important;
+}
+
+.page-content,
+.page-content.nofilter {
+    filter: none !important;
+    -webkit-filter: none !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    user-select: auto !important;
+    -webkit-user-select: auto !important;
+    pointer-events: auto !important;
+    clip-path: none !important;
+    -webkit-clip-path: none !important;
+    mask-image: none !important;
+    -webkit-mask-image: none !important;
+    color: inherit !important;
+}
+
+.pf img,
+.page-content img {
+    filter: none !important;
+    -webkit-filter: none !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    clip-path: none !important;
+    -webkit-clip-path: none !important;
+    mask-image: none !important;
+    -webkit-mask-image: none !important;
+}
+
+[class*="blurred-image-wrapper"],
+[class*="BlurredImage"],
+[class*="blurred-page"],
+[class*="BlurredPage"] {
+    filter: none !important;
+    -webkit-filter: none !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+}
+
+/* Overlays with backdrop-filter inside the viewer */
+[class*="Viewer_document"] [class*="overlay"],
+[class*="Viewer_document"] [class*="Overlay"],
+#viewer-wrapper [class*="overlay"],
+#viewer-wrapper [class*="Overlay"] {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    background: transparent !important;
+    display: none !important;
+}
+
+/* Pseudo-element overlays on page elements */
+.pf::before,
+.pf::after,
+.page-content::before,
+.page-content::after,
+[class*="blurred"]::before,
+[class*="blurred"]::after,
+[class*="Blurred"]::before,
+[class*="Blurred"]::after {
+    display: none !important;
+    content: none !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+}
+
+/* ========== Premium banners and preview restrictions ========== */
+
+[class*="PremiumBannerBlobWrapper"],
+[class*="PremiumBannerHeader"],
+[class*="PremiumBannerSubHeader"],
+[class*="PremiumBannerBenefitsList"],
+[class*="PremiumBannerButtons"],
+[class*="InlineBanner_inline-banner"],
+[class*="PremiumPageClarificationBanner"],
+[class*="premium-banner-wrapper"],
+[class*="PremiumBannerWrapper"],
+[class*="premiumBannerWrapper"],
+[class*="ViewerContainer_premium"],
+[data-test-selector="modal-document-viewer-preview-message"],
+[data-test-selector="preview-banner-upgrade-first-cta"],
+[data-test-selector="preview-banner-upload-second-cta"],
+.banner-wrapper,
+._95f5f1767857,
+._3273140306b6 {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    height: 0 !important;
+    width: 0 !important;
+    overflow: hidden !important;
+    pointer-events: none !important;
+}
+
+#modal-overlay {
+    display: none !important;
+}
+
+/* ========== Premium badges, tags and labels ========== */
+
+[class*="PremiumBadge"],
+[class*="premium-badge"],
+[class*="PremiumLabel"],
+[class*="PremiumTag"],
+[class*="premium_tag"],
+[class*="premium_badge"],
+[class*="premiumBadge"],
+[class*="premiumLabel"],
+[class*="premiumTag"],
+[class*="premium-label"],
+[class*="premium-tag"],
+[class*="PremiumIcon"],
+[class*="premiumIcon"],
+[class*="premium-icon"],
+[data-test-selector*="premium-badge"],
+[data-test-selector*="premium-tag"],
+[data-test-selector*="premium-label"] {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    height: 0 !important;
+    width: 0 !important;
+    overflow: hidden !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    pointer-events: none !important;
+}
+
+/* ========== Studocu's own download button (leads to the paywall) ========== */
+
+html:not([data-fs-download="off"]) [data-test-selector="document-viewer-download-button-topbar"]:not(.download-button-1) {
+    display: none !important;
+    visibility: hidden !important;
+}
+/* ========== Settings-driven visibility for our own UI ========== */
+
+/* User turned off our Download button. Hide the button we inject; Studocu's
+   own button reappears because its hiding rule is keyed off "not off". */
+html[data-fs-download="off"] .download-button-1 {
+    display: none !important;
+}
+
+/* User hid the Unblur button. Hides both the toolbar and gated-note variants. */
+html[data-fs-unblur="hide"] .fs-unblur-button {
+    display: none !important;
+}
+
+/* User hid the premium-locked page label. */
+html[data-fs-gated-note="hide"] .fs-gated-note {
+    display: none !important;
+}
+
+/* ========== Ads (Refinery89 / Google Publisher Tag / Adagio) ========== */
+
+html:not([data-fs-ads="show"]) [class*="AdsContainer"],
+html:not([data-fs-ads="show"]) r89-standalone,
+html:not([data-fs-ads="show"]) [id^="r89-"],
+html:not([data-fs-ads="show"]) [id*="r89-"],
+html:not([data-fs-ads="show"]) iframe[id^="google_ads_iframe"],
+html:not([data-fs-ads="show"]) div[id^="google_ads_iframe"],
+html:not([data-fs-ads="show"]) [id^="div-gpt-ad"],
+html:not([data-fs-ads="show"]) [id*="gpt-ad"],
+html:not([data-fs-ads="show"]) [id*="adagio"],
+html:not([data-fs-ads="show"]) [class*="adagio"],
+html:not([data-fs-ads="show"]) [class*="Advertisement"],
+html:not([data-fs-ads="show"]) [class*="advertisement"] {
+    display: none !important;
+    visibility: hidden !important;
+    height: 0 !important;
+    width: 0 !important;
+    overflow: hidden !important;
+    pointer-events: none !important;
+}
+
+/* ========== AI "Ask a question" toolbar (incl. Mock exam / Summary / Quiz) ========== */
+
+html:not([data-fs-ai="show"]) [class*="AIToolbar"] {
+    display: none !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+}
+
+/* ========== Download button ========== */
+
+.download-button-1 {
+    background: #4D8BF5;
+    color: #fff;
+    border: none;
+    border-radius: 24px;
+    padding: 10px 28px;
+    font-size: 14px;
+    font-weight: 600;
+    line-height: normal;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin: 8px auto;
+    width: fit-content;
+    position: relative;
+    z-index: 10;
+    box-shadow: 0 2px 8px rgba(77, 139, 245, 0.3);
+    cursor: pointer;
+    transition: background .2s ease, box-shadow .2s ease, transform .2s ease;
+    text-decoration: none;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+.download-button-1:hover {
+    background: #3a7be0;
+    box-shadow: 0 4px 12px rgba(77, 139, 245, 0.4);
+    transform: translateY(-1px);
+}
+
+.download-button-1:focus-visible {
+    outline: 2px solid #fff;
+    outline-offset: 2px;
+}
+
+.download-button-1 .download-icon {
+    font-size: 16px;
+    line-height: 1;
+}
+
+.download-text {
+    margin-left: 0;
+    font-weight: 500;
+}
+
+/* ========== Logo replacement ========== */
+
+.freestudocu-logo-replaced {
+    display: inline-flex;
+    align-items: center;
+    gap: 0;
+    cursor: pointer;
+    color: inherit;
+    text-decoration: none;
+}
+
+.freestudocu-logo-replaced svg {
+    flex-shrink: 0;
+}
+
+.freestudocu-logo-text {
+    margin-left: 6px;
+    font-weight: 800;
+    font-size: 15px;
+    white-space: nowrap;
+}
+
+.freestudocu-logo-accent {
+    color: #4D8BF5;
+}
+
+@media (max-width: 600px) {
+    .freestudocu-logo-text {
+        display: none !important;
+    }
+
+    .download-text {
+        display: none;
+    }
+
+    .download-button-1 {
+        padding: 10px 20px;
+        font-size: 13px;
+    }
+}
+
+/* ========== In-page notice (replaces alert()) ========== */
+
+#fs-notice {
+    position: fixed;
+    left: 50%;
+    bottom: 24px;
+    transform: translate(-50%, 16px);
+    z-index: 2147483646;
+    max-width: min(520px, 90vw);
+    padding: 12px 18px;
+    border-radius: 8px;
+    background: #1a1a2e;
+    color: #fff;
+    font: 14px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    box-shadow: 0 6px 24px rgba(0, 0, 0, .35);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .2s ease, transform .2s ease;
+}
+
+#fs-notice.fs-notice-visible {
+    opacity: 1;
+    transform: translate(-50%, 0);
+}
+
+/* ========== Premium-locked page label (issue #58) ========== */
+/* Studocu splits each pdf2htmlEX page into a figure layer (bg{hex}.png) and a
+   separately signed text layer ({objectKey}{hex}.page). For premium pages it
+   signs no text layer, so their words are never sent to the browser. Those
+   pages keep Studocu's blurred preview and carry this label. It sits at the top
+   of the page so the reader learns why it is blurred before scrolling past. */
+
+.fs-gated-note {
+    position: absolute !important;
+    left: 0 !important;
+    right: 0 !important;
+    top: 0 !important;
+    z-index: 30 !important;
+    box-sizing: border-box !important;
+    margin: 0 !important;
+    padding: 10px 16px !important;
+    background: rgba(26, 26, 46, 0.92) !important;
+    color: #fff !important;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+    font-size: 13px !important;
+    line-height: 1.45 !important;
+    text-align: center !important;
+    border-bottom: 2px solid #4D8BF5 !important;
+    filter: none !important;
+    opacity: 1 !important;
+    pointer-events: none !important;
+}
+
+/* ========== Download overlay ========== */
+
+#fs-dl-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 2147483647;
+    background: #525659;
+    overflow: auto;
+}
+
+#fs-dl-overlay .fs-dl-bar {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    background: #1a1a2e;
+    color: #fff;
+    padding: 10px 20px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+#fs-dl-overlay .fs-dl-notice {
+    background: #3a3320;
+    color: #f5e8b0;
+    border-bottom: 1px solid #5a5030;
+    padding: 10px 20px;
+    font: 13px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    text-align: center;
+}
+
+#fs-dl-overlay .fs-dl-left {
+    min-width: 0;
+}
+
+#fs-dl-overlay .fs-dl-title {
+    font-size: 14px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+#fs-dl-overlay .fs-dl-meta {
+    font-size: 12px;
+    opacity: .7;
+}
+
+#fs-dl-overlay .fs-dl-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+#fs-dl-overlay .fs-dl-hint {
+    font-size: 12px;
+    opacity: .7;
+    margin-right: 6px;
+}
+
+#fs-dl-overlay .fs-dl-bar button {
+    border: 0;
+    border-radius: 6px;
+    padding: 9px 16px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+}
+
+#fs-dl-overlay .fs-dl-bar button:disabled {
+    opacity: .5;
+    cursor: default;
+}
+
+#fs-dl-overlay .fs-dl-print { background: #4D8BF5; color: #fff; }
+#fs-dl-overlay .fs-dl-close { background: #444; color: #fff; }
+#fs-dl-overlay .fs-dl-reset { background: #b91c1c; color: #fff; }
+#fs-dl-overlay .fs-dl-reset:hover:not(:disabled) { background: #991b1b; }
+
+#fs-dl-overlay .fs-dl-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    height: 78vh;
+    color: #fff;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+#fs-dl-overlay .fs-dl-msg { font-size: 15px; }
+#fs-dl-overlay .fs-dl-sub { font-size: 13px; opacity: .7; }
+
+#fs-dl-overlay .fs-dl-progress {
+    width: 320px;
+    max-width: 80vw;
+    height: 10px;
+    background: #33334d;
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+#fs-dl-overlay .fs-dl-fill {
+    height: 100%;
+    width: 0;
+    background: #4D8BF5;
+    transition: width .2s;
+}
+
+#fs-dl-overlay .fs-dl-pages .p2hv { margin: 0 auto; }
+
+#fs-dl-overlay .fs-dl-pages .pf {
+    margin: 12px auto !important;
+    background: #fff !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, .4);
+    display: block !important;
+    filter: none !important;
+    opacity: 1 !important;
+}
+
+#fs-dl-overlay .fs-dl-pages .page-content,
+#fs-dl-overlay .fs-dl-pages .pc {
+    display: block !important;
+    visibility: visible !important;
+    filter: none !important;
+    opacity: 1 !important;
+}
+
+#fs-dl-overlay .fs-dl-pages .pf img {
+    filter: none !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+}
+
+@media (max-width: 700px) {
+    #fs-dl-overlay .fs-dl-hint { display: none; }
+}
+
+
+/* ========== Download + Unblur button row (viewer toolbar) ========== */
+
+.fs-button-row {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin: 8px auto;
+    width: fit-content;
+}
+
+/* Inside the row, each button keeps its own colours but loses the auto margin
+   that was there for standalone placement. */
+.fs-button-row .download-button-1,
+.fs-button-row .fs-unblur-button {
+    margin: 0;
+}
+
+/* ========== Unblur button ========== */
+
+.fs-unblur-button {
+    background: #b91c1c;
+    color: #fff;
+    border: none;
+    border-radius: 24px;
+    padding: 10px 24px;
+    font-size: 14px;
+    font-weight: 600;
+    line-height: normal;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: fit-content;
+    position: relative;
+    z-index: 10;
+    box-shadow: 0 2px 8px rgba(185, 28, 28, 0.3);
+    cursor: pointer;
+    transition: background .2s ease, box-shadow .2s ease, transform .2s ease;
+    text-decoration: none;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+.fs-unblur-button:hover:not(:disabled) {
+    background: #991b1b;
+    box-shadow: 0 4px 12px rgba(185, 28, 28, 0.4);
+    transform: translateY(-1px);
+}
+
+.fs-unblur-button:focus-visible {
+    outline: 2px solid #fff;
+    outline-offset: 2px;
+}
+
+.fs-unblur-button:disabled {
+    opacity: .6;
+    cursor: default;
+    transform: none;
+}
+
+/* Compact variant used inside the gated-page note. The note itself is
+   pointer-events: none; the button opts back in so it stays clickable. */
+.fs-unblur-button.fs-unblur-inline {
+    pointer-events: auto !important;
+    margin-left: 12px;
+    padding: 4px 14px;
+    font-size: 12px;
+    border-radius: 14px;
+    vertical-align: middle;
+    box-shadow: none;
+}
+
+.fs-unblur-button.fs-unblur-inline:hover:not(:disabled) {
+    transform: none;
+    box-shadow: 0 2px 6px rgba(185, 28, 28, 0.4);
+}
+/* ========== Print ========== */
+@media print {
+    .p2hv .stopoverlappingourstyleplease {
+        display: block;
+    }
+
+    .fs-gated-note {
+        background: #fff !important;
+        color: #000 !important;
+        border-bottom: 1px solid #000 !important;
+        border-top: 0 !important;
+        font-size: 11px !important;
+        padding: 6px 12px !important;
+    }
+    .fs-unblur-button { display: none !important; }
+    .fs-settings-button { display: none !important; }
+    body.fs-dl-open #fs-dl-overlay .fs-dl-notice { display: none !important; }
+
+    /* Only the overlay prints while it is open. */
+    body.fs-dl-open > *:not(#fs-dl-overlay) { display: none !important; }
+    body.fs-dl-open #fs-notice { display: none !important; }
+    html.fs-dl-open, body.fs-dl-open {
+        background: #fff !important;
+        height: auto !important;
+        overflow: visible !important;
+    }
+    body.fs-dl-open #fs-dl-overlay {
+        position: static !important;
+        inset: auto !important;
+        overflow: visible !important;
+        background: #fff !important;
+        height: auto !important;
+    }
+    body.fs-dl-open #fs-dl-overlay .fs-dl-bar { display: none !important; }
+    body.fs-dl-open #fs-dl-overlay .fs-dl-pages .pf {
+        margin: 0 !important;
+        box-shadow: none !important;
+        page-break-after: always;
+        break-after: page;
+    }
+    body.fs-dl-open #fs-dl-overlay .fs-dl-pages .pf:last-child { page-break-after: auto; }
+    @page { margin: 0; }
+}
