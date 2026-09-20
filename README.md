@@ -39,7 +39,7 @@ For heavily premium-locked pages, Studocu **completely blocks** the text asset l
 ## 🤝 Credits & Acknowledgements
 
 This extension extends and refines core components, logical structures, and code architecture originally authored by:
-- **Original Repository:** [studocuhack]([https://github.com](https://github.com/danieltyukov/studocuhack)) created by [@danieltyukov]([https://github.com](https://github.com/danieltyukov)).
+- **Original Repository:** ([studocuhack](https://github.com/danieltyukov/studocuhack)) created by ([@danieltyukov](https://github.com/danieltyukov)).
 - **Custom Enhancements:** Patched lightweight domain permissions under Manifest V3 specifications and packaged background handlers to achieve deep session cookie purging capabilities.
 
 ## 📄 License & Disclaimer
