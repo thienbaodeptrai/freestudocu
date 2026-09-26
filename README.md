@@ -1,6 +1,6 @@
 # FreeStudocu 🚀
 
-**FreeStudocu** is a lightweight browser extension (Manifest V3) designed to remove premium blurs, hide annoying ads, clean up upsell clutter on Studocu, and allow you to download complete documents as high-quality PDFs. This project is an enhanced version built directly upon the open-source foundations of **StudocuHack**, introducing an advanced **Factory Reset** feature to purge site storage and session cookies (including HttpOnly keys).
+**FreeStudocu** is a lightweight browser extension (Manifest V3) designed to remove premium blurs, hide annoying ads, clean up upsell clutter on Studocu, and allow you to download complete documents as high-quality PDFs. This project is an enhanced version built directly upon the open-source foundations of **StudocuHack**.
 <div align="center">
   <img src="https://github.com/user-attachments/assets/29f8a5a3-e5a0-4222-829e-dbc5a5000026" alt="FreeStudocu Extension Demo" style="width: 100%; max-width: 750px; height: auto; image-rendering: -webkit-optimize-contrast; border-radius: 6px;">
   <p><i>FreeStudocu: Unblurring Demo</i></p>
@@ -45,12 +45,12 @@
 
 Studocu translates its document views via `pdf2htmlEX` outputs handled by a React virtual scroller. Each individual page is split into two elements: an underlying graphical background image and an absolute-positioned HTML text layer.
 
-For heavily premium-locked pages, Studocu **completely blocks** the text asset layer from being served to your computer. Because that data never leaves the server, no browser utility can magically recover it. The extension dynamically checks for this condition and marks failed nodes as `premium-locked` in the viewport so you can spot them.
-
 ## 🤝 Credits & Acknowledgements
 
-This extension extends and refines core components, logical structures, and code architecture originally authored by:
-- **Original Repository:** ([studocuhack](https://github.com/danieltyukov/studocuhack)) created by ([@danieltyukov](https://github.com/danieltyukov)).
+This extension extends, refines, and integrates core components, logical structures, and third-party tools originally authored by:
+
+- **Core Architecture & Logic:** Based on the [studocuhack](https://github.com/danieltyukov/studocuhack) repository created by [@danieltyukov](https://github.com/danieltyukov).
+- **Core Conversion Engine:** Powered by [pdf2htmlEX](https://github.com) (originally by [@coolwanglu](https://github.com)), an excellent tool licensed under GPLv3+ used for precise PDF-to-HTML conversion.
 - **Custom Enhancements:** Patched lightweight domain permissions under Manifest V3 specifications and packaged background handlers to achieve deep session cookie purging capabilities.
 
 ## 📄 License & Disclaimer
