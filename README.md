@@ -50,7 +50,7 @@ Studocu translates its document views via `pdf2htmlEX` outputs handled by a Reac
 This extension extends, refines, and integrates core components, logical structures, and third-party tools originally authored by:
 
 - **Core Architecture & Logic:** Based on the [studocuhack](https://github.com/danieltyukov/studocuhack) repository created by [@danieltyukov](https://github.com/danieltyukov).
-- **Core Conversion Engine:** Powered by [pdf2htmlEX](https://github.com) (originally by [@coolwanglu](https://github.com)), an excellent tool licensed under GPLv3+ used for precise PDF-to-HTML conversion.
+- **Core Conversion Engine:** Powered by [pdf2htmlEX](https://github.com/pdf2htmlex/pdf2htmlex), an excellent tool licensed under GPLv3+ used for precise PDF-to-HTML conversion.
 - **Custom Enhancements:** Patched lightweight domain permissions under Manifest V3 specifications and packaged background handlers to achieve deep session cookie purging capabilities.
 
 ## 📄 License & Disclaimer
