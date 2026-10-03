@@ -18,7 +18,7 @@
     cleanup.removeBanners = function () {
         FS.removeMatching(FS.SELECTORS.banners);
         const modal = document.querySelector('#modal-overlay');
-        if (modal) modal.style.display = 'none';
+        if (modal) FS.setStyles(modal, { display: 'none' });
     };
 
     cleanup.removePremiumBadges = function () {

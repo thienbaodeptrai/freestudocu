@@ -9,8 +9,9 @@
 // The button appears in two places:
 //   1. In a row next to the Download button in the viewer.
 //   2. Inside the gated-page note of every premium-locked page.
-// (It is NOT in the download overlay: reloading the tab while the overlay was
-// open caused a visible double-reload.)
+// The Download button also runs this reset first (resetAll({thenDownload}))
+// so the overlay is always built from freshly signed URLs; the background
+// tags the reload URL with `_fs_dl=1` and main.js reopens the overlay.
 //
 // Only the background service worker holds the `cookies` permission, so the
 // actual removal runs there. The extension's own settings (chrome.storage.sync)
@@ -50,14 +51,44 @@
         });
     };
 
-    reset.resetAll = function () {
-        return send({ type: 'FS_RESET_ALL' });
+    // opts.thenDownload: after the reload, reopen the download overlay
+    // automatically (the background adds a `_fs_dl=1` marker to the URL).
+    reset.resetAll = function (opts) {
+        const o = opts || {};
+        return send({ type: 'FS_RESET_ALL', thenDownload: !!o.thenDownload });
     };
     // Auto-unblur: asks the background worker to run a reset only if the
     // cooldown has elapsed. The background decides and reloads the tab itself,
     // so this content script never sees the reload.
     reset.autoUnblur = function () {
         return send({ type: 'FS_AUTO_UNBLUR' });
+    };
+
+    // Ask the user before a reset (it signs them out), unless they ticked
+    // "don't ask again" earlier. Resolves true when the reset may proceed.
+    reset.confirm = function (opts) {
+        const o = opts || {};
+        if (!FS.settings.confirmBeforeUnblur) return Promise.resolve(true);
+        return reset.countCookies().then(function (count) {
+            return FS.confirmDialog({
+                title: o.title || 'Unblur this document?',
+                icon: 'eye',
+                message: [
+                    o.lead || ('Clears ' + count + ' Studocu cookies (including HttpOnly ones) and all page ' +
+                        'storage, then reloads the tab once so Studocu signs a fresh set of page URLs.'),
+                    'Blank or blurred pages usually come from expired signed URLs; a fresh session fixes them.',
+                    'You will be signed out of Studocu. Your FreeStudocu settings are kept.',
+                ],
+                confirmLabel: o.confirmLabel || 'Unblur & reload',
+                cancelLabel: o.cancelLabel || 'Cancel',
+                dontAskLabel: "Don't ask me again",
+            });
+        }).then(function (res) {
+            if (res.confirmed && res.dontAsk) {
+                return FS.saveSetting('confirmBeforeUnblur', false).then(function () { return true; });
+            }
+            return res.confirmed;
+        });
     };
 
     // Factory for an Unblur button. Callers place it wherever they like; clicks
@@ -69,43 +100,47 @@
         btn.type = 'button';
         btn.className = opts.className || 'fs-unblur-button';
         btn.setAttribute('data-freestudocu', 'unblur');
-        btn.textContent = opts.label || 'Unblur';
+        btn.appendChild(FS.icon('eye', opts.iconSize || 16));
+        const label = document.createElement('span');
+        label.className = 'fs-btn-label';
+        label.textContent = opts.label || 'Unblur';
+        btn.appendChild(label);
         btn.title = opts.title ||
             'Fix blank or blurred pages: clear Studocu cookies and storage, then reload (signs you out)';
         return btn;
     };
 
-    function handleClick(btn) {
-        reset.countCookies().then(function (count) {
-            const msg =
-                'Unblur this document?\n' +
-                '\n' +
-                'This clears ' + count + ' cookies from Studocu and the widgets it embeds ' +
-                '(Trustpilot reviews, ad networks) - including HttpOnly ones - plus all ' +
-                'page storage, then reloads the tab once.\n' +
-                '\n' +
-                'Why this helps: Studocu serves every page image through a signed URL ' +
-                'with a short-lived token. Once that token expires, pages stop loading ' +
-                'and show blank or broken images. Clearing the cookies forces Studocu ' +
-                'to sign a fresh set of URLs, which usually makes the images load again.\n' +
-                '\n' +
-                'You will be signed out of Studocu. Your FreeStudocu settings are kept.';
-            if (!window.confirm(msg)) return;
+    let _busy = false;
 
+    function setBusy(btn, busy) {
+        const label = btn.querySelector('.fs-btn-label');
+        if (busy) {
             btn.disabled = true;
-            const original = btn.textContent;
-            btn.textContent = 'Unblurring...';
+            btn.classList.add('fs-busy');
+            if (label) { btn.dataset.fsLabel = label.textContent; label.textContent = 'Unblurring…'; }
+        } else {
+            btn.disabled = false;
+            btn.classList.remove('fs-busy');
+            if (label && btn.dataset.fsLabel) label.textContent = btn.dataset.fsLabel;
+        }
+    }
 
-            reset.resetAll().then(function (res) {
+    function handleClick(btn) {
+        if (_busy) return;
+        _busy = true;
+        reset.confirm().then(function (ok) {
+            if (!ok) { _busy = false; return; }
+            setBusy(btn, true);
+            return reset.resetAll().then(function (res) {
                 if (!res.ok) {
-                    btn.disabled = false;
-                    btn.textContent = original;
-                    FS.notify('FreeStudocu: unblur failed - ' + (res.error || 'unknown error'));
+                    _busy = false;
+                    setBusy(btn, false);
+                    FS.notify('Unblur failed - ' + (res.error || 'unknown error'), 6000, 'err');
                 }
                 // On success the background worker reloads the tab, so this
                 // content script dies with the page.
             });
-        });
+        }).catch(function () { _busy = false; setBusy(btn, false); });
     }
 
     // One delegated handler catches every Unblur button, wherever it lives.

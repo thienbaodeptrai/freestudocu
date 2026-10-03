@@ -39,10 +39,8 @@
     }
 
     function showImg(img) {
-        img.loading = 'eager';
-        img.style.filter = 'none';
-        img.style.opacity = '1';
-        img.style.visibility = 'visible';
+        if (img.loading !== 'eager') img.loading = 'eager';
+        FS.setStyles(img, { filter: 'none', opacity: '1', visibility: 'visible' });
     }
 
     // Make an existing background <img> show clear, full content now.
@@ -182,41 +180,43 @@
     // image (the only rendering of that text that exists client-side) and label
     // it, so a reader never sees a blank sheet and wonders whether the
     // extension failed. Idempotent.
-pages.markGatedPage = function (a, pf, pageNum) {
-    if (pf.querySelector('[data-fs-gated-note]')) return;
-    const blurUrl = FS.blurredPageUrl(a, pageNum);
-    let img = pf.querySelector('img');
-    if (!img && blurUrl) {
-        img = document.createElement('img');
-        img.className = 'bi x0 y0 w1 h1';
-        img.alt = '';
-        img.dataset.fsInjectedImg = '1';
-        img.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;';
-        pf.appendChild(img);
-    }
-    if (img && blurUrl) {
-        const cur = img.getAttribute('src') || '';
-        if (cur.indexOf('/pages/blurred/') === -1) {
-            img.removeAttribute('srcset');
-            img.setAttribute('src', blurUrl);
+    pages.markGatedPage = function (a, pf, pageNum) {
+        if (pf.querySelector('[data-fs-gated-note]')) return;
+        const blurUrl = FS.blurredPageUrl(a, pageNum);
+        let img = pf.querySelector('img');
+        if (!img && blurUrl) {
+            img = document.createElement('img');
+            img.className = 'bi x0 y0 w1 h1';
+            img.alt = '';
+            img.dataset.fsInjectedImg = '1';
+            img.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;';
+            pf.appendChild(img);
         }
-        showImg(img);
-    }
+        if (img && blurUrl) {
+            const cur = img.getAttribute('src') || '';
+            if (cur.indexOf('/pages/blurred/') === -1) {
+                img.removeAttribute('srcset');
+                img.setAttribute('src', blurUrl);
+            }
+            showImg(img);
+        }
 
-    // Build the note, and if the reset module is loaded, drop an Unblur
-    // button inside it so the reader can act on the blur immediately.
-    // (The note carries pointer-events: none; the CSS re-enables them on
-    // this button specifically.)
-    const note = FS.createGatedNote(pageNum);
-    if (FS.reset && FS.reset.createButton) {
-        note.appendChild(FS.reset.createButton({
-            label: 'Unblur',
-            className: 'fs-unblur-button fs-unblur-inline',
-            title: 'Try to unblur this page (clears Studocu session and reloads)',
-        }));
-    }
-    pf.appendChild(note);
-};
+        // Build the note, and if the reset module is loaded, drop an Unblur
+        // button inside it so the reader can act on the blur immediately.
+        // (The note carries pointer-events: none; the CSS re-enables them on
+        // this button specifically.)
+        const note = FS.createGatedNote(pageNum);
+        note.insertBefore(FS.icon('lock', 14), note.firstChild);
+        if (FS.reset && FS.reset.createButton) {
+            note.appendChild(FS.reset.createButton({
+                label: 'Unblur',
+                iconSize: 13,
+                className: 'fs-unblur-button fs-unblur-inline',
+                title: 'Try to unblur this page (clears Studocu session and reloads)',
+            }));
+        }
+        pf.appendChild(note);
+    };
 
     let _gatedReported = false;
     function reportGatedPages(gated, total) {
@@ -277,10 +277,16 @@ pages.markGatedPage = function (a, pf, pageNum) {
     // documents; the rest load on scroll, and the download captures all pages
     // regardless.
     let _primed = false;
+    let _priming = false;
     pages.PRIME_LIMIT = 50;
+    // True while the priming pass is scrolling the viewer. The download
+    // capture also scrolls page by page, so it waits for this to finish.
+    pages.isPriming = function () { return _priming; };
     pages.primeAllPages = function () {
         if (_primed) return;
         if (!FS.settings.autoLoadPages) return;
+        // Do not scroll the viewer underneath an open download overlay.
+        if (document.getElementById('fs-dl-overlay')) return;
         const pfs = FS.viewerPages();
         if (pfs.length === 0) return;
         const a = FS.getDocumentAccessData();
@@ -289,6 +295,7 @@ pages.markGatedPage = function (a, pf, pageNum) {
         });
         if (!(a && a.hasBlurredPages) && !hasBlank) return;
         _primed = true;
+        _priming = true;
 
         const saved = FS.saveScroll();
         const limit = Math.min(pfs.length, pages.PRIME_LIMIT);
@@ -298,8 +305,10 @@ pages.markGatedPage = function (a, pf, pageNum) {
         }
         let i = 0;
         (function step() {
-            if (i >= limit) {
-                FS.restoreScroll(saved);
+            // A download started meanwhile owns the scroll position now.
+            if (i >= limit || document.getElementById('fs-dl-overlay')) {
+                if (!document.getElementById('fs-dl-overlay')) FS.restoreScroll(saved);
+                _priming = false;
                 setTimeout(function () { pages.removeBlur(); pages.ensureAllPagesLoaded(); }, 400);
                 return;
             }
@@ -349,32 +358,28 @@ pages.markGatedPage = function (a, pf, pageNum) {
         });
     };
 
+    const PF_CLEAR = {
+        filter: 'none', opacity: '1', userSelect: 'auto', pointerEvents: 'auto', clipPath: 'none',
+    };
+    const PAGE_CLEAR = {
+        filter: 'none', opacity: '1', userSelect: 'auto', pointerEvents: 'auto', visibility: 'visible',
+        clipPath: 'none', maskImage: 'none', webkitMaskImage: 'none', color: '',
+    };
+    const IMG_CLEAR = { width: '100%', height: 'auto', opacity: '1', filter: 'none', visibility: 'visible' };
+
+    // All writes are guarded (FS.setStyles / FS.addClass): this runs from the
+    // MutationObserver, and unconditional writes re-triggered it forever.
     pages.removeBlur = function () {
-        document.querySelectorAll('.pf').forEach(function (pf) {
-            pf.style.filter = 'none';
-            pf.style.webkitFilter = 'none';
-            pf.style.opacity = '1';
-            pf.style.userSelect = 'auto';
-            pf.style.pointerEvents = 'auto';
-            pf.style.clipPath = 'none';
-            pf.style.webkitClipPath = 'none';
-            pf.classList.add('nofilter');
+        FS.viewerPages().forEach(function (pf) {
+            FS.setStyles(pf, PF_CLEAR);
+            FS.addClass(pf, 'nofilter');
             stripBlurClasses(pf);
         });
 
         document.querySelectorAll('.page-content').forEach(function (page) {
-            page.style.filter = 'none';
-            page.style.webkitFilter = 'none';
-            page.style.opacity = '1';
-            page.style.userSelect = 'auto';
-            page.style.pointerEvents = 'auto';
-            page.style.visibility = 'visible';
-            page.style.clipPath = 'none';
-            page.style.webkitClipPath = 'none';
-            page.style.maskImage = 'none';
-            page.style.webkitMaskImage = 'none';
-            page.style.color = '';
-            page.classList.add('nofilter');
+            if (page.closest('#fs-dl-overlay')) return;
+            FS.setStyles(page, PAGE_CLEAR);
+            FS.addClass(page, 'nofilter');
             stripBlurClasses(page);
 
             // Ancestors up to #page-container may carry the filter too.
@@ -383,9 +388,7 @@ pages.markGatedPage = function (a, pf, pageNum) {
             while (ancestor && ancestor.id !== 'page-container' && ancestor !== document.body && depth < 10) {
                 const cs = getComputedStyle(ancestor);
                 if (cs.filter !== 'none' || cs.opacity !== '1') {
-                    ancestor.style.filter = 'none';
-                    ancestor.style.webkitFilter = 'none';
-                    ancestor.style.opacity = '1';
+                    FS.setStyles(ancestor, { filter: 'none', opacity: '1' });
                 }
                 stripBlurClasses(ancestor);
                 ancestor = ancestor.parentElement;
@@ -393,11 +396,7 @@ pages.markGatedPage = function (a, pf, pageNum) {
             }
 
             page.querySelectorAll('img').forEach(function (img) {
-                img.style.width = '100%';
-                img.style.height = 'auto';
-                img.style.opacity = '1';
-                img.style.filter = 'none';
-                img.style.visibility = 'visible';
+                FS.setStyles(img, IMG_CLEAR);
             });
 
             // Premium clarification banners sit as siblings of the page.
@@ -416,9 +415,7 @@ pages.markGatedPage = function (a, pf, pageNum) {
         });
 
         document.querySelectorAll('[class*="blurred-image-wrapper"], [class*="BlurredImage"], [class*="blurred-page"]').forEach(function (el) {
-            el.style.filter = 'none';
-            el.style.opacity = '1';
-            el.style.visibility = 'visible';
+            FS.setStyles(el, { filter: 'none', opacity: '1', visibility: 'visible' });
             stripBlurClasses(el);
         });
 
@@ -427,7 +424,7 @@ pages.markGatedPage = function (a, pf, pageNum) {
         });
 
         document.querySelectorAll('#modal-overlay, [class*="PremiumOverlay"], [class*="premium-overlay"]').forEach(function (el) {
-            el.style.display = 'none';
+            FS.setStyles(el, { display: 'none' });
         });
 
         pages.unblurImages();

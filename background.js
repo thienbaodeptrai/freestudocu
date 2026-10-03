@@ -9,6 +9,7 @@
 
 const PARTNER_DOMAINS = [
     'studocu',
+    'studeersnel',
     'trustpilot',
     'refinery89',
     'adagio',
@@ -31,11 +32,27 @@ function isResetting(tabId) {
 function markResetting(tabId) { _resetting.set(tabId, Date.now()); }
 function clearResetting(tabId) { _resetting.delete(tabId); }
 
+function matchesPartner(c) {
+    const d = (c.domain || '').toLowerCase();
+    return PARTNER_DOMAINS.some(function (p) { return d.indexOf(p) !== -1; });
+}
+
+// Also returns partitioned (CHIPS) cookies: `partitionKey: {}` asks for every
+// partition on Chrome 119+. Older builds reject the key, so fall back.
 async function collectStudocuCookies() {
-    const all = await chrome.cookies.getAll({});
+    let all;
+    try {
+        all = await chrome.cookies.getAll({ partitionKey: {} });
+    } catch (e) {
+        all = await chrome.cookies.getAll({});
+    }
+    const seen = new Set();
     return all.filter(function (c) {
-        const d = (c.domain || '').toLowerCase();
-        return PARTNER_DOMAINS.some(function (p) { return d.indexOf(p) !== -1; });
+        if (!matchesPartner(c)) return false;
+        const key = [c.storeId, c.domain, c.path, c.name, JSON.stringify(c.partitionKey || null)].join('|');
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
     });
 }
 
@@ -46,12 +63,10 @@ async function removeCookies(cookies) {
         const host = c.domain.replace(/^\./, '');
         const scheme = c.secure ? 'https' : 'http';
         const url = scheme + '://' + host + (c.path || '/');
+        const details = { url: url, name: c.name, storeId: c.storeId };
+        if (c.partitionKey) details.partitionKey = c.partitionKey;
         try {
-            const r = await chrome.cookies.remove({
-                url: url,
-                name: c.name,
-                storeId: c.storeId,
-            });
+            const r = await chrome.cookies.remove(details);
             if (r) removed++; else failed++;
         } catch (e) {
             failed++;
@@ -61,36 +76,53 @@ async function removeCookies(cookies) {
     return { removed: removed, failed: failed };
 }
 
-function clearStorageAndReloadInPage() {
+// Injected into the tab. Wipes page storage, WAITS for the async wipes
+// (IndexedDB, Cache Storage, service workers) with a short cap - previously
+// the reload fired immediately and could cut them off - then navigates once.
+// The navigation is deferred so executeScript resolves cleanly first.
+async function clearStorageAndReloadInPage(thenDownload) {
     try { localStorage.clear(); } catch (e) {}
     try { sessionStorage.clear(); } catch (e) {}
+    const jobs = [];
     try {
         if (indexedDB.databases) {
-            indexedDB.databases().then(function (dbs) {
-                dbs.forEach(function (db) {
-                    if (db && db.name) indexedDB.deleteDatabase(db.name);
-                });
-            }).catch(function () {});
+            jobs.push(indexedDB.databases().then(function (dbs) {
+                return Promise.all(dbs.map(function (db) {
+                    return new Promise(function (resolve) {
+                        if (!db || !db.name) { resolve(); return; }
+                        const req = indexedDB.deleteDatabase(db.name);
+                        req.onsuccess = req.onerror = req.onblocked = function () { resolve(); };
+                    });
+                }));
+            }).catch(function () {}));
         }
     } catch (e) {}
     try {
         if (self.caches) {
-            caches.keys().then(function (keys) {
+            jobs.push(caches.keys().then(function (keys) {
                 return Promise.all(keys.map(function (k) { return caches.delete(k); }));
-            }).catch(function () {});
+            }).catch(function () {}));
         }
     } catch (e) {}
     try {
         if (navigator.serviceWorker) {
-            navigator.serviceWorker.getRegistrations().then(function (regs) {
+            jobs.push(navigator.serviceWorker.getRegistrations().then(function (regs) {
                 return Promise.all(regs.map(function (r) { return r.unregister(); }));
-            }).catch(function () {});
+            }).catch(function () {}));
         }
     } catch (e) {}
 
+    await Promise.race([
+        Promise.all(jobs),
+        new Promise(function (r) { setTimeout(r, 1500); }),
+    ]);
+
     var url = new URL(window.location.href);
     url.searchParams.set('_fs_reset', Date.now().toString(36));
-    window.location.replace(url.toString());
+    if (thenDownload) url.searchParams.set('_fs_dl', '1');
+    else url.searchParams.delete('_fs_dl');
+    setTimeout(function () { window.location.replace(url.toString()); }, 0);
+    return true;
 }
 
 async function readAutoUnblurTimestamp() {
@@ -106,12 +138,13 @@ async function writeAutoUnblurTimestamp(ts) {
 
 // Perform a reset for the given tab: clears matching cookies, then injects
 // the clear+reload function. Shared by manual and automatic paths.
-async function performReset(tabId) {
+async function performReset(tabId, thenDownload) {
     const cookies = await collectStudocuCookies();
     const result = await removeCookies(cookies);
     await chrome.scripting.executeScript({
         target: { tabId: tabId },
         func: clearStorageAndReloadInPage,
+        args: [!!thenDownload],
     });
     return { total: cookies.length, removed: result.removed, failed: result.failed };
 }
@@ -158,7 +191,7 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
 
         (async function () {
             try {
-                const res = await performReset(tabId);
+                const res = await performReset(tabId, !!msg.thenDownload);
                 sendResponse(Object.assign({ ok: true }, res));
                 // The injected function navigates the tab. No cleanup of
                 // _resetting is needed on success; the map entry expires.

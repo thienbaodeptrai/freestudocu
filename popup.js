@@ -15,6 +15,8 @@ const DEFAULTS = {
     showGatedNote: true,
     autoLoadPages: true,
     autoUnblurOnLoad: false,
+    unblurBeforeDownload: true,
+    confirmBeforeUnblur: true,
 };
 
 const FIELDS = Object.keys(DEFAULTS);
@@ -98,24 +100,25 @@ $('factory').addEventListener('click', function () {
             setStatus('This is not a Studocu tab', 'err');
             return;
         }
-        const ok = window.confirm(
-            'Run the factory reset now?\n\n' +
-            'This clears Studocu cookies and page storage, then reloads the tab.\n' +
-            'You will be signed out. FreeStudocu settings are kept.'
-        );
-        if (!ok) return;
-
-        chrome.runtime.sendMessage({ type: 'FS_RESET_ALL', tabId: tab.id }, function (res) {
-            if (chrome.runtime.lastError) {
-                setStatus('Failed: ' + chrome.runtime.lastError.message, 'err');
-                return;
-            }
-            if (res && res.ok) {
-                setStatus('Reset started', 'ok');
-                window.close();
-            } else {
-                setStatus('Failed: ' + ((res && res.error) || 'unknown error'), 'err');
-            }
+        chrome.storage.sync.get({ confirmBeforeUnblur: true }, function (st) {
+            const ok = st.confirmBeforeUnblur === false || window.confirm(
+                'Run the factory reset now?\n\n' +
+                'This clears Studocu cookies and page storage, then reloads the tab.\n' +
+                'You will be signed out. FreeStudocu settings are kept.'
+            );
+            if (!ok) return;
+            chrome.runtime.sendMessage({ type: 'FS_RESET_ALL', tabId: tab.id }, function (res) {
+                if (chrome.runtime.lastError) {
+                    setStatus('Failed: ' + chrome.runtime.lastError.message, 'err');
+                    return;
+                }
+                if (res && res.ok) {
+                    setStatus('Reset started', 'ok');
+                    window.close();
+                } else {
+                    setStatus('Failed: ' + ((res && res.error) || 'unknown error'), 'err');
+                }
+            });
         });
     });
 });

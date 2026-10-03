@@ -133,9 +133,32 @@
         showGatedNote: true,
         autoLoadPages: true,
         autoUnblurOnLoad: false,
+        // Download first runs the Unblur reset (fresh signed URLs), reloads,
+        // then reopens the download overlay automatically.
+        unblurBeforeDownload: true,
+        // Show the confirmation dialog before a reset that signs you out.
+        confirmBeforeUnblur: true,
     };
 
     FS.settings = Object.assign({}, FS.DEFAULT_SETTINGS);
+
+    // Resolves once the value is really persisted (or the write failed), so a
+    // caller that is about to reload the tab can wait for it.
+    FS.saveSetting = function (key, value) {
+        FS.settings[key] = value;
+        return new Promise(function (resolve) {
+            try {
+                const obj = {};
+                obj[key] = value;
+                chrome.storage.sync.set(obj, function () {
+                    if (chrome.runtime && chrome.runtime.lastError) {
+                        FS.log('could not save setting', key, chrome.runtime.lastError.message);
+                    }
+                    resolve();
+                });
+            } catch (e) { resolve(); /* extension context invalidated */ }
+        });
+    };
 
     FS.loadSettings = function () {
         return new Promise(function (resolve) {
@@ -161,8 +184,8 @@
 
     // style.css hides ads, the AI toolbar and Studocu's own download button by
     // default. A disabled feature is expressed as an attribute on <html> that the
-    // CSS rules exclude, so turning a feature off needs no stylesheet juggling.    
-FS.applySettingsToDocument = function () {
+    // CSS rules exclude, so turning a feature off needs no stylesheet juggling.
+    FS.applySettingsToDocument = function () {
         const root = document.documentElement;
         if (!root) return;
         root.setAttribute('data-fs-ads', FS.settings.hideAds ? 'hide' : 'show');
@@ -363,20 +386,220 @@ FS.applySettingsToDocument = function () {
         return !!(img && img.complete && img.naturalWidth > 0);
     };
 
+    // ---------------------------------------------------------------------
+    // Guarded DOM writes
+    //
+    // Assigning an inline style or calling classList.add() queues a mutation
+    // record even when the value does not change. main.js observes `style`
+    // and `class`, so unguarded writes from the periodic blur sweep kept
+    // re-triggering the observer every 50 ms. Only write what differs.
+    // ---------------------------------------------------------------------
+
+    FS.setStyles = function (el, styles) {
+        if (!el || !el.style) return;
+        for (const k in styles) {
+            if (el.style[k] !== styles[k]) el.style[k] = styles[k];
+        }
+    };
+
+    FS.addClass = function (el, cls) {
+        if (el && el.classList && !el.classList.contains(cls)) el.classList.add(cls);
+    };
+
+    FS.sleep = function (ms) {
+        return new Promise(function (r) { setTimeout(r, ms); });
+    };
+
+    // Resolve once predicate() is truthy, or with false after timeoutMs.
+    FS.waitFor = function (predicate, timeoutMs, intervalMs) {
+        const started = Date.now();
+        return new Promise(function (resolve) {
+            (function check() {
+                let ok = false;
+                try { ok = !!predicate(); } catch (e) { ok = false; }
+                if (ok) { resolve(true); return; }
+                if (Date.now() - started > timeoutMs) { resolve(false); return; }
+                setTimeout(check, intervalMs || 250);
+            })();
+        });
+    };
+
+    // ---------------------------------------------------------------------
+    // Fresh session tracking
+    //
+    // Set by main.js when the page loads straight out of a reset. Download
+    // skips its own reset while the session is still fresh, so closing and
+    // reopening the overlay does not reload the tab again.
+    // ---------------------------------------------------------------------
+
+    FS.FRESH_SESSION_MS = 10 * 60 * 1000;
+    FS.freshSession = null; // { at, path }
+
+    FS.isFreshSession = function () {
+        const s = FS.freshSession;
+        return !!(s && s.path === location.pathname && Date.now() - s.at < FS.FRESH_SESSION_MS);
+    };
+
+    // ---------------------------------------------------------------------
+    // Icons
+    //
+    // Built with createElementNS instead of innerHTML so the markup works on
+    // pages that enforce Trusted Types.
+    // ---------------------------------------------------------------------
+
+    const ICONS = {
+        download: ['M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4', 'M7 10l5 5 5-5', 'M12 15V3'],
+        eye: ['M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z', 'M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z'],
+        sliders: ['M4 21v-7', 'M4 10V3', 'M12 21v-9', 'M12 8V3', 'M20 21v-5', 'M20 12V3', 'M1 14h6', 'M9 8h6', 'M17 16h6'],
+        close: ['M18 6 6 18', 'M6 6l12 12'],
+        printer: ['M6 9V2h12v7', 'M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2', 'M6 14h12v8H6z'],
+        refresh: ['M21 12a9 9 0 1 1-3-6.7L21 8', 'M21 3v5h-5'],
+        check: ['M20 6 9 17l-5-5'],
+        lock: ['M5 11h14v10H5z', 'M8 11V7a4 4 0 0 1 8 0v4'],
+        alert: ['M12 9v4', 'M12 17h.01', 'M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z'],
+        info: ['M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20Z', 'M12 16v-4', 'M12 8h.01'],
+    };
+
+    FS.icon = function (name, size) {
+        const NS = 'http://www.w3.org/2000/svg';
+        const svg = document.createElementNS(NS, 'svg');
+        const s = String(size || 16);
+        svg.setAttribute('width', s);
+        svg.setAttribute('height', s);
+        svg.setAttribute('viewBox', '0 0 24 24');
+        svg.setAttribute('fill', 'none');
+        svg.setAttribute('stroke', 'currentColor');
+        svg.setAttribute('stroke-width', '2');
+        svg.setAttribute('stroke-linecap', 'round');
+        svg.setAttribute('stroke-linejoin', 'round');
+        svg.setAttribute('aria-hidden', 'true');
+        svg.setAttribute('class', 'fs-icon');
+        (ICONS[name] || []).forEach(function (d) {
+            const p = document.createElementNS(NS, 'path');
+            p.setAttribute('d', d);
+            svg.appendChild(p);
+        });
+        return svg;
+    };
+
+    // ---------------------------------------------------------------------
+    // Toast and modal
+    // ---------------------------------------------------------------------
+
     // Small in-page notice used instead of alert(), which blocks the tab.
-    FS.notify = function (message, ms) {
+    // kind: 'info' (default) | 'ok' | 'err'.
+    FS.notify = function (message, ms, kind) {
         let el = document.getElementById('fs-notice');
         if (!el) {
             el = document.createElement('div');
             el.id = 'fs-notice';
             el.setAttribute('role', 'status');
-            document.body.appendChild(el);
+            el.setAttribute('aria-live', 'polite');
+            (document.body || document.documentElement).appendChild(el);
         }
-        el.textContent = message;
+        const k = kind || (/fail|error|could not/i.test(message) ? 'err' : 'info');
+        el.className = 'fs-notice-' + k;
+        el.replaceChildren(
+            FS.icon(k === 'err' ? 'alert' : (k === 'ok' ? 'check' : 'info'), 18),
+            document.createTextNode(String(message).replace(/^FreeStudocu:\s*/, ''))
+        );
+        // Force a reflow so the transition replays when re-shown.
+        void el.offsetWidth;
         el.classList.add('fs-notice-visible');
         clearTimeout(el._fsTimer);
         el._fsTimer = setTimeout(function () {
             el.classList.remove('fs-notice-visible');
         }, ms || 5000);
+    };
+
+    // Non-blocking replacement for window.confirm(). Resolves with
+    // { confirmed: boolean, dontAsk: boolean }.
+    FS.confirmDialog = function (opts) {
+        const o = opts || {};
+        return new Promise(function (resolve) {
+            const prev = document.getElementById('fs-modal');
+            if (prev) prev.remove();
+
+            const backdrop = document.createElement('div');
+            backdrop.id = 'fs-modal';
+            backdrop.setAttribute('data-freestudocu', 'modal');
+
+            const box = document.createElement('div');
+            box.className = 'fs-modal-box';
+            box.setAttribute('role', 'dialog');
+            box.setAttribute('aria-modal', 'true');
+
+            const head = document.createElement('div');
+            head.className = 'fs-modal-head';
+            const badge = document.createElement('div');
+            badge.className = 'fs-modal-badge' + (o.danger ? ' fs-danger' : '');
+            badge.appendChild(FS.icon(o.icon || (o.danger ? 'alert' : 'info'), 20));
+            const title = document.createElement('h2');
+            title.className = 'fs-modal-title';
+            title.textContent = o.title || 'Are you sure?';
+            head.appendChild(badge);
+            head.appendChild(title);
+            box.appendChild(head);
+
+            const body = document.createElement('div');
+            body.className = 'fs-modal-body';
+            (Array.isArray(o.message) ? o.message : [o.message || '']).forEach(function (para) {
+                const p = document.createElement('p');
+                p.textContent = para;
+                body.appendChild(p);
+            });
+            box.appendChild(body);
+
+            let dontAskInput = null;
+            if (o.dontAskLabel) {
+                const lbl = document.createElement('label');
+                lbl.className = 'fs-modal-check';
+                dontAskInput = document.createElement('input');
+                dontAskInput.type = 'checkbox';
+                lbl.appendChild(dontAskInput);
+                lbl.appendChild(document.createTextNode(' ' + o.dontAskLabel));
+                box.appendChild(lbl);
+            }
+
+            const actions = document.createElement('div');
+            actions.className = 'fs-modal-actions';
+            const cancel = document.createElement('button');
+            cancel.type = 'button';
+            cancel.className = 'fs-modal-btn fs-modal-cancel';
+            cancel.textContent = o.cancelLabel || 'Cancel';
+            const ok = document.createElement('button');
+            ok.type = 'button';
+            ok.className = 'fs-modal-btn fs-modal-ok' + (o.danger ? ' fs-danger' : '');
+            ok.textContent = o.confirmLabel || 'Continue';
+            actions.appendChild(cancel);
+            actions.appendChild(ok);
+            box.appendChild(actions);
+
+            backdrop.appendChild(box);
+            (document.body || document.documentElement).appendChild(backdrop);
+            requestAnimationFrame(function () { backdrop.classList.add('fs-modal-open'); });
+            ok.focus();
+
+            function finish(confirmed) {
+                document.removeEventListener('keydown', onKey, true);
+                backdrop.classList.remove('fs-modal-open');
+                setTimeout(function () { backdrop.remove(); }, 160);
+                resolve({ confirmed: confirmed, dontAsk: !!(dontAskInput && dontAskInput.checked) });
+            }
+            function onKey(e) {
+                if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); finish(false); }
+                else if (e.key === 'Enter' && document.activeElement !== cancel) {
+                    e.preventDefault(); e.stopPropagation(); finish(true);
+                }
+            }
+            // Keep page handlers (React, the viewer) from seeing modal clicks.
+            ['click', 'mousedown', 'pointerdown'].forEach(function (type) {
+                backdrop.addEventListener(type, function (e) { e.stopPropagation(); });
+            });
+            backdrop.addEventListener('click', function (e) { if (e.target === backdrop) finish(false); });
+            cancel.addEventListener('click', function () { finish(false); });
+            ok.addEventListener('click', function () { finish(true); });
+            document.addEventListener('keydown', onKey, true);
+        });
     };
 })();

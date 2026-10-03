@@ -120,21 +120,33 @@
         }, 2000);
     }
 
-    function startPeriodicSweep() {
-        let count = 0;
-        const sweep = function () {
-            if (document.hidden) return;
-            pages.removeBlur();
-            pages.ensureAllPagesLoaded();
-            pages.patchReactBlurState();
-        };
-        const fast = setInterval(function () {
-            sweep();
-            if (++count >= 15) {
-                clearInterval(fast);
-                setInterval(sweep, 5000);
-            }
-        }, 2000);
+    // ------------------------------------------------------------------
+    // Reset markers
+    // ------------------------------------------------------------------
+
+    // background.js tags the reload URL with _fs_reset (always) and _fs_dl
+    // (when the reset was started by Download). Read them once, strip them from
+    // the address bar, record the fresh session, and resume the download.
+    // Returns true when the page was loaded straight out of a reset.
+    function handleResetMarkers() {
+        const url = new URL(window.location.href);
+        const wasReset = url.searchParams.has('_fs_reset');
+        const wantsDownload = url.searchParams.has('_fs_dl');
+        if (!wasReset && !wantsDownload) return false;
+
+        url.searchParams.delete('_fs_reset');
+        url.searchParams.delete('_fs_dl');
+        try { history.replaceState(null, '', url.toString()); } catch (e) { /* ignore */ }
+
+        FS.freshSession = { at: Date.now(), path: location.pathname };
+        if (wantsDownload && FS.settings.showDownloadButton) {
+            const resume = function () {
+                if (FS.download && FS.download.resumeAfterReset) FS.download.resumeAfterReset();
+            };
+            if (document.body) resume();
+            else document.addEventListener('DOMContentLoaded', resume);
+        }
+        return true;
     }
 
     // ------------------------------------------------------------------
@@ -158,14 +170,9 @@
         if (!FS.settings.autoUnblurOnLoad) return;
         if (!FS.reset || !FS.reset.autoUnblur) return;
 
-        // If the current URL carries our reset marker, we have just come back
-        // from a reset. Strip the marker and skip so we do not loop.
-        const url = new URL(window.location.href);
-        if (url.searchParams.has('_fs_reset')) {
-            url.searchParams.delete('_fs_reset');
-            try { history.replaceState(null, '', url.toString()); } catch (e) { /* ignore */ }
-            return;
-        }
+        // Coming back from a reset (marker already handled by handleResetMarkers):
+        // do not trigger another one.
+        if (FS.freshSession) return;
 
         // Only fire on document pages (they have .pf), not on the homepage.
         waitForPfs(function () {
@@ -207,6 +214,7 @@
     }
 
     function start() {
+        handleResetMarkers();
         FS.applySettingsToDocument();
         runAll();
 
